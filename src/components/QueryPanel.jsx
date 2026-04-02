@@ -9,6 +9,8 @@ export default function QueryPanel({
   activeScenarioId,
   onPresetSelect,
 }) {
+  const charCount = query.length;
+
   return (
     <section className="query-panel surface-card">
       <div className="panel-head">
@@ -21,21 +23,30 @@ export default function QueryPanel({
         </div>
       </div>
 
-      <label className="query-label" htmlFor="policy-query">
-        Claim or recommendation query
-      </label>
-      <textarea
-        id="policy-query"
-        value={query}
-        onChange={(event) => onQueryChange(event.target.value)}
-        placeholder="Example: Hospitalized after 20 days for diabetes. Which policy should I choose?"
-      />
+      <div className="analyzer-frame">
+        <div className="textarea-meta">
+          <label className="query-label" htmlFor="policy-query">
+            Claim or recommendation query
+          </label>
+          <span>{charCount} chars</span>
+        </div>
+
+        <textarea
+          id="policy-query"
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="Example: Hospitalized after 20 days for diabetes. Which policy should I choose?"
+        />
+      </div>
 
       <div className="action-row">
         <button className="primary-button" type="button" onClick={onAnalyze}>
           {isAnalyzing ? "Running analysis" : "Analyze result"}
         </button>
-        <span className="helper-copy">Designed to surface results, not long workflows.</span>
+        <span className="helper-copy">
+          Drop in a claim situation or a recommendation need. We will surface the clause,
+          decision, and best-fit policies below.
+        </span>
       </div>
 
       <div className="preset-grid">

@@ -3,7 +3,13 @@ import React from "react";
 export default function StoryAnimation({ activeScenario }) {
   return (
     <div className="story-scene">
-      <div className="story-label">5 second story loop</div>
+      <div className="story-meta">
+        <div className="story-label">5 second story loop</div>
+        <div className="story-caption">
+          From confusion to clarity, with the decision panel arriving after the story.
+        </div>
+      </div>
+      <div className="story-grid" />
 
       <div className="story-bubble question-bubble">
         <strong>Too much policy language.</strong>
@@ -14,6 +20,9 @@ export default function StoryAnimation({ activeScenario }) {
         <strong>{activeScenario.verdict}</strong>
         <span>{activeScenario.quickFacts[2]?.value}</span>
       </div>
+
+      <div className="story-beam beam-a" />
+      <div className="story-beam beam-b" />
 
       <div className="story-desk">
         <div className="paper paper-a" />
@@ -64,26 +73,6 @@ export default function StoryAnimation({ activeScenario }) {
         </div>
       </div>
 
-      <div className="preview-window card-float story-overlay">
-        <div className="preview-top">
-          <span className="dot" />
-          <span className="dot" />
-          <span className="dot" />
-        </div>
-
-        <div className="preview-pill">{activeScenario.confidence}</div>
-        <h2>{activeScenario.verdict}</h2>
-        <p>{activeScenario.summary}</p>
-
-        <div className="preview-stats">
-          {activeScenario.quickFacts.map((fact) => (
-            <article key={fact.label}>
-              <strong>{fact.value}</strong>
-              <span>{fact.label}</span>
-            </article>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

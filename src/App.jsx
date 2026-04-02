@@ -61,27 +61,48 @@ export default function App() {
       </header>
 
       <main>
-        <Hero activeScenario={activeScenario} />
-
-        <section className="workspace" id="analyzer">
-          <QueryPanel
-            query={query}
-            onQueryChange={setQuery}
-            onAnalyze={handleAnalyze}
-            isAnalyzing={isAnalyzing}
-            activeScenarioId={activeScenarioId}
-            onPresetSelect={handlePresetSelect}
-          />
-
-          <ResultSpotlight activeScenario={activeScenario} isAnalyzing={isAnalyzing} />
+        <section className="page-section hero-section">
+          <Hero activeScenario={activeScenario} />
         </section>
 
-        <RecommendationGrid
-          recommendations={activeScenario.recommendations}
-          userGoal={activeScenario.userGoal}
-        />
+        <section className="page-section analyzer-page" id="analyzer">
+          <section className="analyzer-stage">
+            <div className="section-head analyzer-head">
+              <div>
+                <span className="eyebrow muted">Main analyzer</span>
+                <h2>Paste the policy question. Let the decision and recommendations follow.</h2>
+              </div>
+              <p>
+                This is the primary action area now. The analyzer leads, the verdict appears
+                right underneath, and the recommended policies continue below in one clean flow.
+              </p>
+            </div>
 
-        <InsightRail activeScenario={activeScenario} />
+            <div className="analyzer-stack">
+              <QueryPanel
+                query={query}
+                onQueryChange={setQuery}
+                onAnalyze={handleAnalyze}
+                isAnalyzing={isAnalyzing}
+                activeScenarioId={activeScenarioId}
+                onPresetSelect={handlePresetSelect}
+              />
+
+              <ResultSpotlight activeScenario={activeScenario} isAnalyzing={isAnalyzing} />
+            </div>
+          </section>
+        </section>
+
+        <section className="page-section recommendations-page">
+          <RecommendationGrid
+            recommendations={activeScenario.recommendations}
+            userGoal={activeScenario.userGoal}
+          />
+        </section>
+
+        <section className="page-section insights-page">
+          <InsightRail activeScenario={activeScenario} />
+        </section>
       </main>
     </div>
   );
