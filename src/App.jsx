@@ -4,7 +4,9 @@ import QueryPanel from "./components/QueryPanel";
 import ResultSpotlight from "./components/ResultSpotlight";
 import RecommendationGrid from "./components/RecommendationGrid";
 import InsightRail from "./components/InsightRail";
+import PolicyTreeExplorer from "./components/PolicyTreeExplorer";
 import { scenarios, defaultQuery, resolveScenarioFromQuery } from "./data/scenarios";
+import policyDocumentData from "../policy_vectorless_document.json";
 
 export default function App() {
   const [query, setQuery] = useState(defaultQuery);
@@ -92,6 +94,8 @@ export default function App() {
             </div>
           </section>
         </section>
+
+        <PolicyTreeExplorer documentData={policyDocumentData} />
 
         <section className="page-section recommendations-page">
           <RecommendationGrid
