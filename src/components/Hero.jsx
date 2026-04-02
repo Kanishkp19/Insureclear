@@ -1,4 +1,5 @@
 import React from "react";
+import StoryAnimation from "./StoryAnimation";
 
 export default function Hero({ activeScenario }) {
   return (
@@ -21,26 +22,7 @@ export default function Hero({ activeScenario }) {
       </div>
 
       <div className="hero-preview">
-        <div className="preview-window card-float">
-          <div className="preview-top">
-            <span className="dot" />
-            <span className="dot" />
-            <span className="dot" />
-          </div>
-
-          <div className="preview-pill">{activeScenario.confidence}</div>
-          <h2>{activeScenario.verdict}</h2>
-          <p>{activeScenario.summary}</p>
-
-          <div className="preview-stats">
-            {activeScenario.quickFacts.map((fact) => (
-              <article key={fact.label}>
-                <strong>{fact.value}</strong>
-                <span>{fact.label}</span>
-              </article>
-            ))}
-          </div>
-        </div>
+        <StoryAnimation activeScenario={activeScenario} />
       </div>
     </section>
   );
