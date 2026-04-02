@@ -3,76 +3,60 @@ import React from "react";
 export default function StoryAnimation({ activeScenario }) {
   return (
     <div className="story-scene">
-      <div className="story-meta">
-        <div className="story-label">5 second story loop</div>
-        <div className="story-caption">
-          From confusion to clarity, with the decision panel arriving after the story.
-        </div>
-      </div>
-      <div className="story-grid" />
-
-      <div className="story-bubble question-bubble">
-        <strong>Too much policy language.</strong>
-        <span>What is actually covered?</span>
-      </div>
-
-      <div className="story-bubble answer-bubble">
-        <strong>{activeScenario.verdict}</strong>
-        <span>{activeScenario.quickFacts[2]?.value}</span>
-      </div>
-
-      <div className="story-beam beam-a" />
-      <div className="story-beam beam-b" />
-
-      <div className="story-desk">
-        <div className="paper paper-a" />
-        <div className="paper paper-b" />
-        <div className="paper paper-c" />
-        <div className="laptop">
-          <div className="laptop-screen">
-            <div className="mini-result-chip">{activeScenario.confidence}</div>
-            <div className="mini-bars">
-              <span />
-              <span />
-              <span />
-            </div>
-            <div className="mini-reco-card">
-              <strong>{activeScenario.quickFacts[2]?.value}</strong>
-              <small>Recommended policy</small>
-            </div>
-          </div>
+      <div className="story-header">
+        <div>
+          <div className="story-label">How it feels</div>
+          <p className="story-caption">
+            A simple three-step story: policy confusion, structured analysis, then a clear decision
+            and recommendation.
+          </p>
         </div>
       </div>
 
-      <div className="figure figure-reader">
-        <div className="figure-head">
-          <span className="eye left" />
-          <span className="eye right" />
-          <span className="mouth" />
-        </div>
-        <div className="figure-body" />
-        <div className="figure-arm arm-left" />
-        <div className="figure-arm arm-right" />
-        <div className="figure-leg leg-left" />
-        <div className="figure-leg leg-right" />
+      <div className="story-flow-grid">
+        <article className="story-step-card">
+          <span className="story-step-number">01</span>
+          <h3>Someone opens a policy and gets lost in the wording.</h3>
+          <p>
+            Long exclusions, waiting periods, and coverage conditions make it hard to know what
+            really applies.
+          </p>
+        </article>
+
+        <article className="story-step-card story-step-card-accent">
+          <span className="story-step-number">02</span>
+          <h3>InsureClear turns the document into structured evidence.</h3>
+          <p>
+            We map the policy into clauses, pull the matching section, and prepare a clean
+            decision-ready summary.
+          </p>
+        </article>
+
+        <article className="story-step-card">
+          <span className="story-step-number">03</span>
+          <h3>The user sees a recommendation they can understand.</h3>
+          <p>
+            Verdict, matched clause, explanation, and the best-fit policy appear in one readable
+            flow.
+          </p>
+        </article>
       </div>
 
-      <div className="figure figure-friend">
-        <div className="figure-head">
-          <span className="eye left" />
-          <span className="eye right" />
-          <span className="mouth smile" />
+      <div className="story-result-strip">
+        <div className="story-result-copy">
+          <span className="story-bottom-label">Current example</span>
+          <h3>{activeScenario.verdict}</h3>
+          <p>{activeScenario.explanation}</p>
         </div>
-        <div className="figure-body friend-shirt" />
-        <div className="figure-arm arm-left lift" />
-        <div className="figure-arm arm-right" />
-        <div className="figure-leg leg-left" />
-        <div className="figure-leg leg-right" />
-        <div className="friend-tablet">
-          <span />
+        <div className="story-result-metrics">
+          {activeScenario.quickFacts.map((fact) => (
+            <article key={fact.label}>
+              <strong>{fact.value}</strong>
+              <span>{fact.label}</span>
+            </article>
+          ))}
         </div>
       </div>
-
     </div>
   );
 }

@@ -16,7 +16,7 @@ export default function QueryPanel({
       <div className="panel-head">
         <div>
           <span className="eyebrow muted">Policy analyzer</span>
-          <h2>Ask like a user. Get a result like an advisor.</h2>
+          <h2>Submit a claim-like question and generate an evidence-backed decision.</h2>
         </div>
         <div className={`status-chip ${isAnalyzing ? "active" : ""}`}>
           {isAnalyzing ? "Analyzing..." : "Ready"}
@@ -44,8 +44,8 @@ export default function QueryPanel({
           {isAnalyzing ? "Running analysis" : "Analyze result"}
         </button>
         <span className="helper-copy">
-          Drop in a claim situation or a recommendation need. We will surface the clause,
-          decision, and best-fit policies below.
+          Use natural language. We convert the query into matched clauses, a decision summary,
+          and policy recommendations below.
         </span>
       </div>
 
@@ -58,7 +58,7 @@ export default function QueryPanel({
             onClick={() => onPresetSelect(scenario.id)}
           >
             <strong>{scenario.label}</strong>
-            <span>{scenario.verdict}</span>
+            <span>{scenario.verdict} scenario</span>
           </button>
         ))}
       </div>

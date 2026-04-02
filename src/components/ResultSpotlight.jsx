@@ -6,7 +6,7 @@ export default function ResultSpotlight({ activeScenario, isAnalyzing }) {
       <div className="result-head">
         <div>
           <span className="eyebrow muted">Live result</span>
-          <h2>{activeScenario.summary}</h2>
+          <h2>Decision output with exact evidence and explanation.</h2>
         </div>
         <div className={`score-badge ${activeScenario.verdictTone}`}>
           <strong>{activeScenario.score}</strong>
@@ -18,12 +18,20 @@ export default function ResultSpotlight({ activeScenario, isAnalyzing }) {
         <span />
       </div>
 
-      <div className="result-grid">
+      <div className="result-summary-bar">
         <article className={`verdict-card ${activeScenario.verdictTone}`}>
           <span className="mini-label">Decision</span>
           <h3>{activeScenario.verdict}</h3>
           <p>{activeScenario.points}</p>
         </article>
+
+        <article className="result-hero-copy">
+          <span className="mini-label">Decision summary</span>
+          <p>{activeScenario.summary}</p>
+        </article>
+      </div>
+
+      <div className="result-grid">
 
         <article className="detail-card">
           <span className="mini-label">Matched clause</span>

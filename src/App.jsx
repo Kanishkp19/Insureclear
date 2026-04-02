@@ -53,12 +53,13 @@ export default function App() {
 
         <nav className="topnav">
           <a href="#analyzer">Analyzer</a>
+          <a href="#policy-tree">Policy tree</a>
           <a href="#recommendations">Recommendations</a>
           <a href="#insights">Insights</a>
         </nav>
 
         <button className="ghost-button" type="button">
-          Live demo
+          Evidence-led UI
         </button>
       </header>
 
