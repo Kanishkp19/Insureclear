@@ -8,47 +8,32 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  UNIVERSAL TEXT RE-CHUNKER
-#
-#  WHY THIS EXISTS:
-#  PageIndex (and most tree-builders) assign one node per top-level heading.
-#  A 4-page document with 6 riders gets only 5 nodes because all rider text
-#  is collapsed into one parent "Section 3" blob. The cross-encoder then
-#  scores that giant blob and gets diluted / wrong results.
-#
-#  This module detects section boundaries INSIDE any node's text and creates
-#  individual synthetic child-nodes for each sub-section automatically —
-#  so every clause is independently searchable regardless of how coarsely
-#  PageIndex chunked the original document.
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Minimum characters a node text must have before we attempt re-chunking.
 _RECHUNK_MIN_LEN = 300
+_CHUNK_MIN_LEN   = 80
 
-# Minimum characters a resulting chunk must have to be worth indexing.
-_CHUNK_MIN_LEN = 80
-
-# Patterns that signal a new sub-section inside a text blob.
-# Each captures the header text as group(0). Listed most→least specific.
 _SECTION_PATTERNS = [
     # Rider-style: "R1.", "R4. Diet Consultation Rider"
     re.compile(r'(?m)^(R\d{1,2}\.\s+[A-Z][^\n]{3,80})'),
-
     # Numbered clauses at line start: "1.", "2.1", "3.4.1  Title"
     re.compile(r'(?m)^(\d{1,2}(?:\.\d{1,2}){0,2}\.?\s+[A-Z][^\n]{3,80})'),
-
     # ALL-CAPS section headings common in insurance policies
     re.compile(r'(?m)^([A-Z][A-Z\s\-]{5,60})$'),
-
     # Markdown headers: "## Section" or "**Section**"
     re.compile(r'(?m)^(?:#{1,4}\s+|(?:\*\*))([A-Z][^\n*]{3,80})(?:\*\*)?'),
 ]
 
+# Noise penalty list — definition/disclaimer/preamble nodes match
+# many keywords generically and pollute the top candidates sent to the
+# cross-encoder. Hard-penalise them in pre-retrieval scoring.
+_NOISE_PATH_KEYWORDS = {
+    "definition", "definitions", "disclaimer", "disclaimers",
+    "preamble", "general", "introduction", "schedule", "annexure",
+}
+
 
 def _find_split_positions(text: str):
-    """
-    Scan text with all patterns and return sorted (offset, header) pairs.
-    Deduplicates so two patterns matching the same position keep only one.
-    """
     hits = {}
     for pattern in _SECTION_PATTERNS:
         for m in pattern.finditer(text):
@@ -61,7 +46,13 @@ def _find_split_positions(text: str):
 def _rechunk_text(parent_id: str, text: str, path_str: str) -> list:
     """
     Split a large text blob into fine-grained sub-nodes.
-    Returns [] if nothing is worth splitting (text is already atomic).
+    Sub-nodes use ONLY their own header as path root, NOT the parent path.
+    This prevents wrong nesting like "Section 3 > R1 > R4" — each rider
+    gets its own clean path e.g. "R4. Diet Consultation Rider".
+
+    IMPORTANT: The bracketed path prefix is stored in node["path"] only.
+    node["text"] contains CLEAN text with NO bracket prefix so the
+    cross-encoder receives exactly what it was trained on.
     """
     if len(text) < _RECHUNK_MIN_LEN:
         return []
@@ -78,14 +69,17 @@ def _rechunk_text(parent_id: str, text: str, path_str: str) -> list:
         if len(chunk) < _CHUNK_MIN_LEN:
             continue
 
-        sub_path  = f"{path_str} > {header}" if path_str else header
+        sub_path  = header
         sub_id    = f"{parent_id}_chunk_{i}"
         short_sum = chunk[:120].replace("\n", " ")
 
         sub_nodes.append({
             "id":      sub_id,
+            # summary keeps the path label for human-readable logging only
             "summary": f"[{sub_path}] {short_sum}",
-            "text":    f"[{sub_path}] {chunk}",
+            # FIX: text is CLEAN — no bracketed prefix injected here
+            # The cross-encoder only sees plain clause text, same as training
+            "text":    chunk,
             "path":    sub_path.lower(),
         })
 
@@ -114,16 +108,6 @@ class UniversalInference:
 
     # ──────────────────────────────────────────────────────────────────────────
     def _extract_nodes(self, data, nodes_list, current_path=None):
-        """
-        Recursively walk the PageIndex tree and populate nodes_list.
-
-        For every node whose text is large enough to contain multiple
-        sub-sections, _rechunk_text() creates fine-grained synthetic child
-        nodes so even a coarsely chunked document gets per-clause indexing.
-
-        Before fix: 4-page Mental Wellbeing PDF → 5 nodes (all riders in 1 blob)
-        After fix:  same PDF → 5 + 6 sub-nodes = 11+ individually scored riders
-        """
         if current_path is None:
             current_path = []
 
@@ -137,32 +121,26 @@ class UniversalInference:
 
             node_id = data.get("node_id", data.get("id"))
             if node_id:
-                summary = str(data.get("prefix_summary", data.get("summary", "")))
-                text    = str(data.get("text", ""))
+                summary  = str(data.get("prefix_summary", data.get("summary", "")))
+                raw_text = str(data.get("text", ""))
                 if len(summary) < 5:
-                    summary = text[:100]
+                    summary = raw_text[:100]
 
-                path_str         = " > ".join(new_path) if new_path else ""
-                enriched_summary = f"[{path_str}] {summary}" if path_str else summary
-                enriched_text    = f"[{path_str}] {text}"    if path_str else text
+                path_str = " > ".join(new_path) if new_path else ""
 
-                # Keep the original parent node
                 nodes_list.append({
                     "id":      str(node_id),
-                    "summary": enriched_summary,
-                    "text":    enriched_text,
+                    # summary keeps path label for logging
+                    "summary": f"[{path_str}] {summary}" if path_str else summary,
+                    # FIX: text is CLEAN — no bracketed path prefix
+                    # Cross-encoder sees plain clause text only, same as training
+                    "text":    raw_text,
                     "path":    path_str.lower(),
                 })
 
-                # ── UNIVERSAL RE-CHUNKER ──────────────────────────────────
-                # Detect and split any sub-sections inside this node's text.
-                # Works for ANY document structure — insurance riders, legal
-                # clauses, medical sections, etc. — purely pattern-driven,
-                # no hardcoding for specific document types.
-                sub_nodes = _rechunk_text(str(node_id), text, path_str)
+                sub_nodes = _rechunk_text(str(node_id), raw_text, path_str)
                 if sub_nodes:
-                    print(f"   ✂️  Re-chunked node '{node_id}' "
-                          f"→ {len(sub_nodes)} sub-nodes")
+                    print(f"   ✂️  Re-chunked node '{node_id}' → {len(sub_nodes)} sub-nodes")
                 nodes_list.extend(sub_nodes)
 
             if "nodes" in data:
@@ -170,10 +148,6 @@ class UniversalInference:
 
     # ──────────────────────────────────────────────────────────────────────────
     def ingest_tree(self, doc_id: str, tree_dict):
-        """
-        Dynamically load a vectorless tree into the in-memory index.
-        Used for user-uploaded documents — no disk I/O required.
-        """
         nodes = []
         data_to_extract = (
             tree_dict.get('result', tree_dict)
@@ -188,13 +162,7 @@ class UniversalInference:
     # ──────────────────────────────────────────────────────────────────────────
     def extract_payload(self, question: str, targets: list,
                         confidence_threshold: float = 0.15) -> dict:
-        """
-        Extract best clauses per document and return a structured payload.
 
-        targets: list of
-          str  → doc_id in pre-loaded on-disk index
-          dict → {"doc_id": str, "tree": dict} → ingested on the fly
-        """
         payload = {"user_question": question, "selected_clauses": []}
 
         resolved_ids = []
@@ -222,6 +190,8 @@ class UniversalInference:
                 # ── 1. VECTORLESS PRE-RETRIEVAL ───────────────────────────
                 def compute_score(query: str, node: dict) -> float:
                     q        = query.lower()
+                    # For scoring we still use path + summary for signal,
+                    # but the cross-encoder will only see clean node["text"]
                     combined = (
                         node.get("summary", "").lower() + " " +
                         node.get("text",    "").lower() + " " +
@@ -229,31 +199,51 @@ class UniversalInference:
                     )
                     path_l = node.get("path", "").lower()
 
-                    exact    = 5.0 if q in combined else 0.0
+                    # Hard penalty for noise nodes (definitions, disclaimers)
+                    if any(kw in path_l for kw in _NOISE_PATH_KEYWORDS):
+                        return -10.0
 
-                    stopwords = {"is","the","a","an","of","in","on",
-                                 "for","to","and","or","what","my","me"}
-                    kws      = [w for w in q.split()
-                                if w not in stopwords and len(w) > 2]
+                    exact = 5.0 if q in combined else 0.0
+
+                    # Expanded stopwords — words like "policy", "cover", "rider"
+                    # appear in every node and give zero signal
+                    stopwords = {
+                        "is", "the", "a", "an", "of", "in", "on",
+                        "for", "to", "and", "or", "what", "my", "me",
+                        "does", "do", "have", "has", "will", "can",
+                        "policy", "cover", "covered", "rider",
+                    }
+                    kws = [w for w in q.split()
+                           if w not in stopwords and len(w) > 2]
+
                     kw_score = sum(1.5 for w in kws if w in combined)
 
-                    bigrams  = [f"{kws[i]} {kws[i+1]}" for i in range(len(kws)-1)]
+                    bigrams  = [f"{kws[i]} {kws[i+1]}" for i in range(len(kws) - 1)]
                     bg_score = sum(3.0 for bg in bigrams if bg in combined)
 
-                    path_score = sum(2.5 for w in kws if w in path_l)
+                    # High path weight so clause-specific nodes rank much higher
+                    path_score = sum(4.0 for w in kws if w in path_l)
 
                     return exact + kw_score + bg_score + path_score
 
                 scored = [(compute_score(question, n), n) for n in nodes]
                 scored.sort(key=lambda x: x[0], reverse=True)
-                top_candidates = [n for _, n in scored[:25]] or nodes[:25]
+
+                # Only pass candidates with a positive pre-retrieval score
+                # to the cross-encoder. Noise nodes (score <= 0) are excluded.
+                top_candidates = (
+                    [n for s, n in scored[:25] if s > 0]
+                    or [n for _, n in scored[:10]]
+                )
 
                 print("\nTop candidates:")
                 for score, n in scored[:5]:
                     print(f"  {score:.1f} → {n['summary'][:100]}")
 
                 # ── 2. CROSS-ENCODER RANKING ──────────────────────────────
-                pairs  = [[question, n['text']] for n in top_candidates]
+                # node["text"] is already clean (no bracket prefix) so we feed
+                # it directly — no stripping needed anymore
+                pairs  = [[question, n["text"]] for n in top_candidates]
                 inputs = self.tokenizer(
                     pairs,
                     padding=True,
@@ -266,13 +256,30 @@ class UniversalInference:
                 if probs.dim() == 0:
                     probs = probs.unsqueeze(0)
 
-                for idx in torch.argsort(probs, descending=True)[:3]:
+                # No fallback — if the cross-encoder cannot find a confident
+                # match above the threshold, we return nothing for this doc
+                # and let the explainer node report "not found" cleanly.
+                # This is honest: a wrong confident answer is worse than silence.
+                added = 0
+                for idx in torch.argsort(probs, descending=True):
+                    if added >= 3:
+                        break
+                    score_val = round(probs[idx].item(), 4)
+
+                    if score_val < confidence_threshold:
+                        # Log the miss so you can diagnose model issues
+                        print(f"   ℹ️  Cross-encoder max score {score_val:.4f} "
+                              f"below threshold {confidence_threshold}. "
+                              f"No clause selected for '{doc_id}'.")
+                        break
+
                     payload["selected_clauses"].append({
                         "document_id":      doc_id,
-                        "node_id":          top_candidates[idx]['id'],
-                        "confidence_score": round(probs[idx].item(), 4),
-                        "text":             top_candidates[idx]['text']
+                        "node_id":          top_candidates[idx]["id"],
+                        "confidence_score": score_val,
+                        "text":             top_candidates[idx]["text"],
                     })
+                    added += 1
 
         return payload
 
@@ -284,6 +291,6 @@ if __name__ == "__main__":
     payload  = engine.extract_payload(
                    question,
                    ["BAJAJ-ALLIANZ-MOTOR-POLICY-WORDING_tree"])
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print(json.dumps(payload, indent=2))
-    print("="*50 + "\n")
+    print("=" * 50 + "\n")

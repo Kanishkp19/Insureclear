@@ -25,12 +25,20 @@ def preprocess_query(user_query, current_ui_selection="None"):
     User Query: "{user_query}"
     
     Task 1: Categorize the query into one of: [LIFE, HEALTH, MOTOR, PROPERTY, TRAVEL, COMMERCIAL, UNKNOWN].
-    Task 2: Rewrite the user's query into a highly detailed, formal QUESTION. Enhance it by weaving in relevant insurance terminology, synonyms, and specific conditions (e.g., 'acts of god', 'waiting periods', 'exclusions', 'third-party'). It MUST remain a natural language question so a downstream QA model can process it.
-    
+    Task 2: Rewrite the user's query into a highly detailed, formal QUESTION for a downstream QA model.
+
+    STRICT RULES for Task 2:
+    - PRESERVE all rider names, section names, and benefit names EXACTLY as the user wrote them.
+      For example: if the user says "diet consultation rider", that exact phrase MUST appear
+      verbatim in the refined_question. Do NOT replace it with synonyms or paraphrases.
+    - You MAY add relevant insurance terminology and conditions AROUND the preserved terms,
+      but never replace or omit the original terms the user mentioned.
+    - The result must be a natural language question (not a list or bullet points).
+
     Return ONLY a JSON object in this exact format:
     {{
       "domain": "CATEGORY",
-      "refined_question": "Does the property insurance policy cover structural damage to the roof caused by falling objects, such as a tree, during a hurricane or natural disaster?"
+      "refined_question": "Does the health insurance policy include a diet consultation rider that covers sessions with a registered nutritionist or dietitian during the policy period?"
     }}
     """
     

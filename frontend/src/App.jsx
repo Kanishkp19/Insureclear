@@ -1,129 +1,95 @@
-import React, { useMemo, useState } from "react";
-import Hero from "./components/Hero";
-import QueryPanel from "./components/QueryPanel";
-import ResultSpotlight from "./components/ResultSpotlight";
-import RecommendationGrid from "./components/RecommendationGrid";
-import InsightRail from "./components/InsightRail";
-import PolicyTreeExplorer from "./components/PolicyTreeExplorer";
-import ChatPanel from "./components/ChatPanel";
-import { scenarios, defaultQuery, resolveScenarioFromQuery } from "./data/scenarios";
-import policyDocumentData from "../policy_vectorless_document.json";
+// === APP ROOT ===
+import { AnimatePresence } from 'framer-motion'
+import { useAppState } from './hooks/useAppState'
+import Sidebar from './components/sidebar/Sidebar'
+import TopBar from './components/topbar/TopBar'
+import RightRailChat from './components/rightRail/RightRailChat'
+import RightRailTree from './components/rightRail/RightRailTree'
+import ChatPage from './components/pages/chat/ChatPage'
+import PolicyTreePage from './components/pages/policyTree/PolicyTreePage'
+import PlaceholderPage from './components/pages/PlaceholderPage'
+import { C } from './constants'
+
+function PageContent(props) {
+  const { activePage, ...rest } = props
+  switch (activePage) {
+    case 'AI Chat':        return <ChatPage {...rest} />
+    case 'Policy Tree':    return <PolicyTreePage />
+    case 'Analyzer':       return <PlaceholderPage name="Analyzer" />
+    case 'Recommendations':return <PlaceholderPage name="Recommendations" />
+    case 'Insights':       return <PlaceholderPage name="Insights" />
+    case 'Settings':       return <PlaceholderPage name="Settings" />
+    case 'Help':           return <PlaceholderPage name="Help" />
+    default:               return <PlaceholderPage name={activePage} />
+  }
+}
 
 export default function App() {
-  const [query, setQuery] = useState(defaultQuery);
-  const [activeScenarioId, setActiveScenarioId] = useState("diabetesEarly");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const state = useAppState()
 
-  const activeScenario = useMemo(
-    () => scenarios.find((scenario) => scenario.id === activeScenarioId) ?? scenarios[0],
-    [activeScenarioId]
-  );
+  const {
+    sessionId, messages, domain, confidence, clauseCount, riskFlags,
+    activePage, setActivePage, fileName, isUploading, isLoading,
+    handleUpload, handleQuery, resetSession,
+  } = state
 
-  function handlePresetSelect(nextId) {
-    const scenario = scenarios.find((item) => item.id === nextId);
-    if (!scenario) return;
-
-    setActiveScenarioId(scenario.id);
-    setQuery(scenario.query);
-  }
-
-  function handleAnalyze() {
-    setIsAnalyzing(true);
-
-    window.setTimeout(() => {
-      const resolved = resolveScenarioFromQuery(query);
-      setActiveScenarioId(resolved.id);
-      setIsAnalyzing(false);
-    }, 850);
-  }
+  const showTreeRail = activePage === 'Policy Tree'
 
   return (
-    <div className="app-shell">
-      <div className="ambient ambient-a" />
-      <div className="ambient ambient-b" />
-      <div className="ambient ambient-c" />
+    <div style={{
+      display: 'flex',
+      height: '100vh',
+      width: '100vw',
+      overflow: 'hidden',
+      background: C.bgPage,
+      fontFamily: "'Inter', 'SF Pro Display', system-ui, sans-serif",
+      color: C.textPrimary,
+    }}>
+      {/* Left sidebar */}
+      <Sidebar activePage={activePage} setActivePage={setActivePage} />
 
-      <header className="topbar">
-        <a className="brand" href="#top">
-          <span className="brand-mark">IC</span>
-          <span>
-            <strong>InsureClear</strong>
-            <small>Policy results made simple</small>
-          </span>
-        </a>
+      {/* Main area */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        minWidth: 0,
+        overflow: 'hidden',
+      }}>
+        <TopBar activePage={activePage} domain={domain} />
 
-        <nav className="topnav">
-          <a href="#chat">AI Chat</a>
-          <a href="#analyzer">Analyzer</a>
-          <a href="#policy-tree">Policy tree</a>
-          <a href="#recommendations">Recommendations</a>
-          <a href="#insights">Insights</a>
-        </nav>
+        {/* Page body */}
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minWidth: 0 }}>
+          <AnimatePresence mode="wait">
+            <PageContent
+              key={activePage}
+              activePage={activePage}
+              sessionId={sessionId}
+              messages={messages}
+              isUploading={isUploading}
+              isLoading={isLoading}
+              fileName={fileName}
+              onUpload={handleUpload}
+              onQuery={handleQuery}
+              onReset={resetSession}
+            />
+          </AnimatePresence>
+        </div>
+      </div>
 
-        <button className="ghost-button" type="button">
-          Evidence-led UI
-        </button>
-      </header>
-
-      <main>
-        <section className="page-section hero-section">
-          <Hero activeScenario={activeScenario} />
-        </section>
-
-        {/* ── Live AI Chat (Universal Selector pipeline) ── */}
-        <section className="page-section" id="chat" style={{ paddingTop: "4rem" }}>
-          <div className="section-head" style={{ marginBottom: "1.5rem" }}>
-            <span className="eyebrow muted">Live pipeline</span>
-            <h2>AI Policy Chat — Powered by Universal Selector</h2>
-            <p style={{ opacity: 0.6, fontSize: "0.95rem", maxWidth: 600 }}>
-              Upload your policy PDF or ask any question. The RL model selects the most
-              relevant clause and the explainer delivers a clear, evidence-backed answer.
-            </p>
-          </div>
-          <ChatPanel />
-        </section>
-
-        <section className="page-section analyzer-page" id="analyzer">
-          <section className="analyzer-stage">
-            <div className="section-head analyzer-head">
-              <div>
-                <span className="eyebrow muted">Main analyzer</span>
-                <h2>Paste the policy question. Let the decision and recommendations follow.</h2>
-              </div>
-              <p>
-                This is the primary action area now. The analyzer leads, the verdict appears
-                right underneath, and the recommended policies continue below in one clean flow.
-              </p>
-            </div>
-
-            <div className="analyzer-stack">
-              <QueryPanel
-                query={query}
-                onQueryChange={setQuery}
-                onAnalyze={handleAnalyze}
-                isAnalyzing={isAnalyzing}
-                activeScenarioId={activeScenarioId}
-                onPresetSelect={handlePresetSelect}
-              />
-
-              <ResultSpotlight activeScenario={activeScenario} isAnalyzing={isAnalyzing} />
-            </div>
-          </section>
-        </section>
-
-        <PolicyTreeExplorer documentData={policyDocumentData} />
-
-        <section className="page-section recommendations-page">
-          <RecommendationGrid
-            recommendations={activeScenario.recommendations}
-            userGoal={activeScenario.userGoal}
-          />
-        </section>
-
-        <section className="page-section insights-page">
-          <InsightRail activeScenario={activeScenario} />
-        </section>
-      </main>
+      {/* Right rail — swaps based on page */}
+      <AnimatePresence mode="wait">
+        {showTreeRail
+          ? <RightRailTree key="tree-rail" />
+          : <RightRailChat
+              key="chat-rail"
+              confidence={confidence}
+              domain={domain}
+              clauseCount={clauseCount}
+              riskFlags={riskFlags}
+            />
+        }
+      </AnimatePresence>
     </div>
-  );
+  )
 }

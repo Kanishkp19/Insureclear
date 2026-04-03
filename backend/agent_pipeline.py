@@ -22,13 +22,13 @@ from explainer import explain_query_answer
 # ==========================================
 # ⚙️ 1. SETUP & CONFIGURATION
 # ==========================================
-gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
+gemini_key    = os.environ.get("GEMINI_API_KEY", "").strip()
 pageindex_key = os.environ.get("PAGEINDEX_API_KEY", "").strip()
 
 if not gemini_key or not pageindex_key:
     raise ValueError("❌ Missing API Keys in .env file.")
 
-client = genai.Client(api_key=gemini_key)
+client    = genai.Client(api_key=gemini_key)
 pi_client = PageIndexClient(api_key=pageindex_key)
 
 # ---------------------------------------------------------------------------
@@ -39,7 +39,6 @@ universal_selector = UniversalInference(
     data_folder="./data/",
 )
 
-# Map of domain names to their pre-processed JSON filenames in ./data/
 DOMAIN_DOC_MAP = {
     "LIFE":       "HDFC-Life-Click-2-Protect-Life-101N139V04-Policy-Document_tree",
     "HEALTH":     "new-complete-health-insurance-brochure_tree",
@@ -50,28 +49,20 @@ DOMAIN_DOC_MAP = {
     "UNKNOWN":    "brochure-eng1_tree",
 }
 
-# ✅ FIX: Add thread_id to AgentState so nodes can look up the session store
+
 class AgentState(TypedDict):
     messages:          Annotated[List[dict], operator.add]
-    thread_id:         str                   # ← NEW: carried through every turn
+    thread_id:         str
     current_domain:    str
     refined_question:  str
     is_comparison:     bool
     rl_output:         Dict[str, Any]
     final_explanation: str
-    # temp_policy_tree intentionally REMOVED from LangGraph state —
-    # it now lives exclusively in _session_store to avoid loss between turns.
+
 
 # ==========================================
-# 🗂️ SESSION STORE — fixes the core bug
+# 🗂️ SESSION STORE
 # ==========================================
-# LangGraph's MemorySaver checkpoints state between graph runs, but
-# partial invocations (passing only "messages") can cause non-reduced
-# keys like temp_policy_tree to be unreliable across turns.
-#
-# Solution: maintain a plain Python dict keyed by thread_id as the
-# single source of truth for the uploaded tree. The graph nodes read
-# from here directly, so the tree is NEVER lost between turns.
 _session_store: Dict[str, Dict[str, Any]] = {}
 
 def get_session(thread_id: str) -> Dict[str, Any]:
@@ -109,7 +100,7 @@ def process_temp_pdf(pdf_path):
     print(f"\n   ⏳ [Secure Memory] Processing '{os.path.basename(pdf_path)}'...")
     try:
         submission = pi_client.submit_document(pdf_path)
-        doc_id = submission["doc_id"]
+        doc_id     = submission["doc_id"]
 
         while not pi_client.is_retrieval_ready(doc_id):
             time.sleep(3)
@@ -127,10 +118,8 @@ def process_temp_pdf(pdf_path):
 # ==========================================
 
 def router_node(state: AgentState) -> AgentState:
-    user_query = state["messages"][-1]["content"]
-    thread_id  = state.get("thread_id", "default")
-
-    # ✅ FIX: Read temp tree from session store, not from LangGraph state
+    user_query    = state["messages"][-1]["content"]
+    thread_id     = state.get("thread_id", "default")
     has_temp_file = get_temp_tree(thread_id) is not None
 
     prompt = f"""
@@ -154,9 +143,9 @@ def router_node(state: AgentState) -> AgentState:
         )
         result = json.loads(response.text)
         return {
-            "current_domain":    result.get("domain", "UNKNOWN"),
-            "refined_question":  result.get("refined_question", user_query),
-            "is_comparison":     result.get("is_comparison", False),  # ✅ FIX: was missing
+            "current_domain":   result.get("domain", "UNKNOWN"),
+            "refined_question": result.get("refined_question", user_query),
+            "is_comparison":    result.get("is_comparison", False),
         }
     except:
         return {
@@ -172,26 +161,24 @@ def rl_extraction_node(state: AgentState) -> AgentState:
     is_compare = state.get("is_comparison", False)
     thread_id  = state.get("thread_id", "default")
 
-    # ✅ FIX: Always pull temp tree from session store — never from LangGraph state.
-    # This guarantees the tree survives across multiple query turns.
     temp_tree = get_temp_tree(thread_id)
     has_temp  = temp_tree is not None
 
     targets = []
 
-    # 🟢 SCENARIO A: COMPARISON MODE — uploaded policy vs database document
+    # SCENARIO A: COMPARISON MODE — uploaded policy vs database document
     if is_compare and has_temp:
         print(f"   [RL System] COMPARISON MODE for: '{refined_q}'")
         targets.append({"doc_id": "User_Uploaded_Policy", "tree": temp_tree})
         db_doc_id = DOMAIN_DOC_MAP.get(domain, DOMAIN_DOC_MAP["UNKNOWN"])
         targets.append(db_doc_id)
 
-    # 🔵 SCENARIO B: UPLOAD PRESENT — query against uploaded doc only
+    # SCENARIO B: UPLOAD PRESENT — query against uploaded doc only
     elif has_temp:
         print("   [RL System] Querying Uploaded Policy...")
         targets.append({"doc_id": "User_Uploaded_Policy", "tree": temp_tree})
 
-    # 🟣 SCENARIO C: NO UPLOAD — query the permanent database
+    # SCENARIO C: NO UPLOAD — query the permanent database
     else:
         print("   [RL System] Querying Permanent Database...")
         db_doc_id = DOMAIN_DOC_MAP.get(domain, DOMAIN_DOC_MAP["UNKNOWN"])
@@ -202,22 +189,24 @@ def rl_extraction_node(state: AgentState) -> AgentState:
 
 
 def explainer_node(state: AgentState) -> AgentState:
-    """
-    Final node in the graph. 
-    1. Grabs the raw RL output (selected clauses).
-    2. Passes it to the Groq-powered explainer.py for a plain-English reply.
-    """
     user_query = state["messages"][-1]["content"]
     rl_data    = state["rl_output"]
 
-    # Ensure the explainer knows what the original question was
     rl_data["user_question"] = user_query
 
-    # Call the production explainer layer
     explanation_result = explain_query_answer(rl_data)
-    
-    # Extract the primary answer for the chat message
-    final_text = explanation_result.get("answer", "No relevant clauses found.")
+
+    final_text   = explanation_result.get("answer", "No relevant clauses found.")
+    needs_review = explanation_result.get("needs_review", False)
+    confidence   = explanation_result.get("confidence", "low")
+
+    # FIX 8: Surface a visible warning in the chat when retrieval was uncertain,
+    # so the user knows to verify with their insurer directly.
+    if needs_review:
+        final_text += (
+            f"\n\n⚠️ *Low confidence retrieval ({confidence}). "
+            f"Please verify this directly with your insurer.*"
+        )
 
     return {
         "final_explanation": final_text,
@@ -229,18 +218,15 @@ def explainer_node(state: AgentState) -> AgentState:
 # 🕸️ 3. BUILD AND COMPILE THE GRAPH
 # ==========================================
 
-# ✅ FIX: Add thread_id to AgentState so nodes can look up the session store
-# Moved up to top of file
-
 workflow = StateGraph(AgentState)
-workflow.add_node("router",      router_node)
+workflow.add_node("router",       router_node)
 workflow.add_node("rl_extractor", rl_extraction_node)
-workflow.add_node("explainer",   explainer_node)
+workflow.add_node("explainer",    explainer_node)
 
-workflow.add_edge(START,         "router")
-workflow.add_edge("router",      "rl_extractor")
-workflow.add_edge("rl_extractor","explainer")
-workflow.add_edge("explainer",   END)
+workflow.add_edge(START,          "router")
+workflow.add_edge("router",       "rl_extractor")
+workflow.add_edge("rl_extractor", "explainer")
+workflow.add_edge("explainer",    END)
 
 memory = MemorySaver()
 app    = workflow.compile(checkpointer=memory)
@@ -266,7 +252,7 @@ def run_chat():
         if user_input.lower() in ['exit', 'quit']:
             break
 
-        # 🟢 HANDLE DYNAMIC FILE UPLOADS
+        # HANDLE DYNAMIC FILE UPLOADS
         if user_input.startswith("/upload"):
             parts = user_input.split(" ", 1)
             if len(parts) < 2:
@@ -280,10 +266,7 @@ def run_chat():
 
             temp_tree = process_temp_pdf(pdf_path)
             if temp_tree:
-                # ✅ FIX: Store tree in session store, NOT in initial_state.
-                # This way every subsequent query in the same session finds it.
                 set_temp_tree(THREAD_ID, temp_tree)
-
                 initial_state = {
                     "thread_id": THREAD_ID,
                     "messages":  [{"role": "user", "content": "I just uploaded a custom policy. Can you explain the main coverages?"}]
@@ -294,14 +277,12 @@ def run_chat():
                 print("-" * 60)
             continue
 
-        # 🔴 CLEAR uploaded policy
+        # CLEAR uploaded policy
         if user_input.lower() == "/clear":
             clear_temp_tree(THREAD_ID)
             print("   ✅ Uploaded policy cleared. Now querying permanent database.")
             continue
 
-        # ✅ FIX: Always include thread_id so nodes can reach the session store.
-        # No temp_policy_tree here — it lives in _session_store.
         print("   ⏳ Thinking...")
         initial_state = {
             "thread_id": THREAD_ID,
