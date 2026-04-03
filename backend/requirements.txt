@@ -1,0 +1,5 @@
+pageindex
+docling
+python-dotenv
+google-genai
+langgraph
