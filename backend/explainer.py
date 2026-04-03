@@ -100,7 +100,7 @@ def explain_query_answer(rl_output: dict) -> dict:
     valid = [
         c for c in clauses
         if "NO RELEVANT CLAUSE" not in c.get("text", "").upper()
-        and c.get("confidence_score", 0) > 0.0
+        and c.get("confidence_score", 0) >= 0.0
     ]
     valid.sort(key=lambda c: c.get("confidence_score", 0), reverse=True)
 

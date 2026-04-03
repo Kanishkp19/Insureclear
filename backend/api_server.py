@@ -5,7 +5,10 @@ import os
 import json
 import uuid
 import tempfile
+import shutil
+import glob
 from typing import Optional, List, Dict, Any
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,12 +31,32 @@ from agent_pipeline import (
 )
 
 # ---------------------------------------------------------------------------
+# Temporary Data Directory
+# ---------------------------------------------------------------------------
+TEMP_DATA_DIR = os.path.join(os.path.dirname(__file__), "temp_data")
+os.makedirs(TEMP_DATA_DIR, exist_ok=True)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: ensure directory is clean or exists
+    os.makedirs(TEMP_DATA_DIR, exist_ok=True)
+    yield
+    # Shutdown: Clean up temporary files
+    for filepath in glob.glob(os.path.join(TEMP_DATA_DIR, "*.json")):
+        try:
+            os.remove(filepath)
+            print(f"🧹 Cleared temp file: {os.path.basename(filepath)}")
+        except Exception as e:
+            print(f"⚠️ Failed to clear temp file {filepath}: {e}")
+
+# ---------------------------------------------------------------------------
 # App Setup
 # ---------------------------------------------------------------------------
 server = FastAPI(
     title="InsureClear API",
     description="Vectorless RAG + Universal Selector RL pipeline for insurance policy understanding.",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 server.add_middleware(
@@ -64,6 +87,7 @@ class UploadResponse(BaseModel):
     session_id: str
     message: str
     node_count: int
+    tree_data: Optional[Dict[str, Any]] = None
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +107,33 @@ def get_or_create_session(session_id: Optional[str]) -> str:
 @server.get("/health")
 def health():
     return {"status": "ok", "pipeline": "InsureClear v1.0"}
+
+
+@server.get("/tree")
+async def get_policy_tree(session_id: Optional[str] = None):
+    """
+    Returns the currently active policy tree for visualization.
+    If a session has an uploaded temp tree, returns that.
+    Otherwise returns the default pre-indexed Tata AIG tree.
+    """
+    # 1. Check for temporary uploaded tree in active session
+    if session_id:
+        sid = get_or_create_session(session_id)
+        temp_tree = get_temp_tree(sid)
+        if temp_tree:
+            return {"tree_data": temp_tree}
+            
+    # 2. Provide the default background Property tree for visualization
+    try:
+        domain_file = "tata_aig_home_protect_plus_policy_policy_wordings_190cb1709a_tree.json"
+        path = os.path.join(os.path.dirname(__file__), "data", domain_file)
+        if os.path.exists(path):
+            with open(path, 'r', encoding='utf-8') as f:
+                return {"tree_data": json.load(f)}
+    except:
+        pass
+
+    return {"tree_data": None}
 
 
 @server.post("/upload", response_model=UploadResponse)
@@ -115,6 +166,11 @@ async def upload_document(
         raise HTTPException(status_code=500, detail="Failed to process PDF. Please try again.")
 
     set_temp_tree(sid, tree)
+    
+    # Save a physical copy of the tree to temp_data for visualization / debugging
+    temp_json_path = os.path.join(TEMP_DATA_DIR, f"{sid}_tree.json")
+    with open(temp_json_path, "w", encoding="utf-8") as f:
+        json.dump(tree, f, indent=2)
 
     # Count nodes for the response
     if isinstance(tree, list):
@@ -134,6 +190,7 @@ async def upload_document(
         session_id=sid,
         message=f"✅ Document '{file.filename}' processed successfully.",
         node_count=node_count,
+        tree_data=tree
     )
 
 

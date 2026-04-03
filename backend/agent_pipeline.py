@@ -97,7 +97,7 @@ def clean_json_tree(tree_data):
 
 def process_temp_pdf(pdf_path):
     """Uploads to PageIndex, returns JSON dict, and DOES NOT save to disk."""
-    print(f"\n   [upload] Secure memory processing '{os.path.basename(pdf_path)}'...")
+    print(f"\n   ⏳ [Secure Memory] Processing '{os.path.basename(pdf_path)}'...")
     try:
         submission = pi_client.submit_document(pdf_path)
         doc_id     = submission["doc_id"]
@@ -106,10 +106,10 @@ def process_temp_pdf(pdf_path):
             time.sleep(3)
 
         raw_tree = pi_client.get_tree(doc_id, node_summary=True)
-        print("   [ok] Secure memory PDF converted to vectorless JSON successfully.")
+        print(f"   ✅ [Secure Memory] PDF converted to Vectorless JSON successfully.")
         return clean_json_tree(raw_tree)
     except Exception as e:
-        print(f"   [error] Upload error: {e}")
+        print(f"   ❌ Upload Error: {e}")
         return None
 
 
@@ -184,7 +184,11 @@ def rl_extraction_node(state: AgentState) -> AgentState:
         db_doc_id = DOMAIN_DOC_MAP.get(domain, DOMAIN_DOC_MAP["UNKNOWN"])
         targets.append(db_doc_id)
 
-    rl_response = universal_selector.extract_payload(refined_q, targets)
+    rl_response = universal_selector.extract_payload(
+        refined_q, 
+        targets, 
+        confidence_threshold=0.0
+    )
     return {"rl_output": rl_response}
 
 
@@ -237,7 +241,7 @@ app    = workflow.compile(checkpointer=memory)
 # ==========================================
 def run_chat():
     print("=" * 60)
-    print("Production Agentic Bot Online! (Supports Memory & Temporary Uploads)")
+    print("🤖 Production Agentic Bot Online! (Supports Memory & Temporary Uploads)")
     print("Commands:")
     print("  - Type a question to chat.")
     print("  - Type '/upload filepath.pdf' to upload a temporary policy.")
@@ -256,12 +260,12 @@ def run_chat():
         if user_input.startswith("/upload"):
             parts = user_input.split(" ", 1)
             if len(parts) < 2:
-                print("   [warn] Please provide a file path. Example: /upload my_policy.pdf")
+                print("   ⚠️  Please provide a file path. Example: /upload my_policy.pdf")
                 continue
 
             pdf_path = parts[1].strip()
             if not os.path.exists(pdf_path):
-                print(f"   [warn] File not found: {pdf_path}")
+                print(f"   ⚠️  File not found: {pdf_path}")
                 continue
 
             temp_tree = process_temp_pdf(pdf_path)
@@ -271,26 +275,26 @@ def run_chat():
                     "thread_id": THREAD_ID,
                     "messages":  [{"role": "user", "content": "I just uploaded a custom policy. Can you explain the main coverages?"}]
                 }
-                print("   [wait] Generating explanation for uploaded policy...")
+                print("   ⏳ Generating explanation for uploaded policy...")
                 result = app.invoke(initial_state, config=config)
-                print(f"\nSystem: {result['final_explanation']}")
+                print(f"\n🤖 System: {result['final_explanation']}")
                 print("-" * 60)
             continue
 
         # CLEAR uploaded policy
         if user_input.lower() == "/clear":
             clear_temp_tree(THREAD_ID)
-            print("   [ok] Uploaded policy cleared. Now querying permanent database.")
+            print("   ✅ Uploaded policy cleared. Now querying permanent database.")
             continue
 
-        print("   [wait] Thinking...")
+        print("   ⏳ Thinking...")
         initial_state = {
             "thread_id": THREAD_ID,
             "messages":  [{"role": "user", "content": user_input}]
         }
         result = app.invoke(initial_state, config=config)
 
-        print(f"\nSystem: {result['final_explanation']}")
+        print(f"\n🤖 System: {result['final_explanation']}")
         print("-" * 60)
 
 

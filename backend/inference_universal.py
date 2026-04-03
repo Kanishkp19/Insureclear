@@ -1,100 +1,123 @@
-import glob
-import json
-import os
 import re
-
+import json
 import torch
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+import glob
+import os
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  UNIVERSAL TEXT RE-CHUNKER
+# ══════════════════════════════════════════════════════════════════════════════
 
 _RECHUNK_MIN_LEN = 300
-_CHUNK_MIN_LEN = 80
-_DEFAULT_CONFIDENCE_THRESHOLD = 0.15
-_FALLBACK_PRETRIEVAL_THRESHOLD = 3.0
-_MIN_CONFIDENCE_FLOOR = 1e-6
+_CHUNK_MIN_LEN   = 80
 
 _SECTION_PATTERNS = [
-    re.compile(r"(?m)^(R\d{1,2}\.\s+[A-Z][^\n]{3,80})"),
-    re.compile(r"(?m)^(\d{1,2}(?:\.\d{1,2}){0,2}\.?\s+[A-Z][^\n]{3,80})"),
-    re.compile(r"(?m)^([A-Z][A-Z\s\-]{5,60})$"),
-    re.compile(r"(?m)^(?:#{1,4}\s+|(?:\*\*))([A-Z][^\n*]{3,80})(?:\*\*)?"),
+    # Rider-style: "R1.", "R4. Diet Consultation Rider"
+    re.compile(r'(?m)^(R\d{1,2}\.\s+[A-Z][^\n]{3,80})'),
+    # Numbered clauses at line start: "1.", "2.1", "3.4.1  Title"
+    re.compile(r'(?m)^(\d{1,2}(?:\.\d{1,2}){0,2}\.?\s+[A-Z][^\n]{3,80})'),
+    # ALL-CAPS section headings common in insurance policies
+    re.compile(r'(?m)^([A-Z][A-Z\s\-]{5,60})$'),
+    # Markdown headers: "## Section" or "**Section**"
+    re.compile(r'(?m)^(?:#{1,4}\s+|(?:\*\*))([A-Z][^\n*]{3,80})(?:\*\*)?'),
 ]
 
+# Noise penalty list — definition/disclaimer/preamble nodes match
+# many keywords generically and pollute the top candidates sent to the
+# cross-encoder. Hard-penalise them in pre-retrieval scoring.
 _NOISE_PATH_KEYWORDS = {
-    "definition",
-    "definitions",
-    "disclaimer",
-    "disclaimers",
-    "preamble",
-    "general",
-    "introduction",
-    "schedule",
-    "annexure",
+    "definition", "definitions", "disclaimer", "disclaimers",
+    "preamble", "general", "introduction", "schedule", "annexure",
 }
 
 
 def _find_split_positions(text: str):
     hits = {}
     for pattern in _SECTION_PATTERNS:
-        for match in pattern.finditer(text):
-            pos = match.start()
+        for m in pattern.finditer(text):
+            pos = m.start()
             if pos not in hits:
-                hits[pos] = match.group(0).strip()
+                hits[pos] = m.group(0).strip()
     return sorted(hits.items())
 
 
 def _rechunk_text(parent_id: str, text: str, path_str: str) -> list:
     """
-    Split large clause blobs into smaller nodes while keeping clean clause text
-    for the cross-encoder. Path labels stay in metadata only.
+    Split a large text blob into fine-grained sub-nodes.
+    Sub-nodes use ONLY their own header as path root, NOT the parent path.
+    Also ensures no single chunk is too large for the 512 token limit.
     """
     if len(text) < _RECHUNK_MIN_LEN:
         return []
 
     splits = _find_split_positions(text)
-    if len(splits) < 2:
-        return []
-
     sub_nodes = []
-    for index, (start, header) in enumerate(splits):
-        end = splits[index + 1][0] if index + 1 < len(splits) else len(text)
-        chunk = text[start:end].strip()
 
-        if len(chunk) < _CHUNK_MIN_LEN:
-            continue
+    if len(splits) >= 2:
+        for i, (start, header) in enumerate(splits):
+            end   = splits[i + 1][0] if i + 1 < len(splits) else len(text)
+            chunk = text[start:end].strip()
 
-        sub_nodes.append(
-            {
-                "id": f"{parent_id}_chunk_{index}",
-                "summary": f"[{header}] {chunk[:120].replace(chr(10), ' ')}",
-                "text": chunk,
-                "path": header.lower(),
-            }
-        )
+            if len(chunk) < _CHUNK_MIN_LEN:
+                continue
+
+            sub_path  = header
+            _split_large_chunk(chunk, parent_id, f"chunk_{i}", sub_path, sub_nodes)
+    else:
+        # Fallback for massive blocks with no headers
+        _split_large_chunk(text, parent_id, "block", path_str, sub_nodes)
 
     return sub_nodes
 
+def _split_large_chunk(chunk_text: str, parent_id: str, base_suffix: str, sub_path: str, output_list: list):
+    CHUNK_MAX_CHARS = 2000
+    if len(chunk_text) <= CHUNK_MAX_CHARS:
+        short_sum = chunk_text[:120].replace("\n", " ")
+        output_list.append({
+            "id":      f"{parent_id}_{base_suffix}",
+            "summary": f"[{sub_path}] {short_sum}",
+            "text":    chunk_text,
+            "path":    sub_path.lower(),
+        })
+    else:
+        parts = [chunk_text[j:j+CHUNK_MAX_CHARS] for j in range(0, len(chunk_text), CHUNK_MAX_CHARS)]
+        for j, p in enumerate(parts):
+            if len(p) < 50 and j == len(parts)-1:
+                continue # Skip micro trailing chunks
+            short_sum = p[:120].replace("\n", " ")
+            output_list.append({
+                "id":      f"{parent_id}_{base_suffix}_p{j+1}",
+                "summary": f"[{sub_path} pt {j+1}] {short_sum}",
+                "text":    p,
+                "path":    sub_path.lower(),
+            })
+
+# (Deleted old loop body logic as it was replaced by _split_large_chunk)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 
 class UniversalInference:
     def __init__(self, model_path="./universal_selector", data_folder="./data/"):
-        print(f"[loader] Loading Universal Selector Cross-Encoder from {model_path}...")
+        print(f"⏳ Loading Universal Selector Cross-Encoder from {model_path}...")
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
-        self.model = AutoModelForSequenceClassification.from_pretrained(
-            model_path,
-            num_labels=1,
-        )
+        self.model     = AutoModelForSequenceClassification.from_pretrained(
+                             model_path, num_labels=1)
         self.model.eval()
-        print("   [ok] Universal Selector loaded.")
+        print("   ✅ Universal Selector loaded.")
 
         self.json_docs = {}
         for filepath in glob.glob(os.path.join(data_folder, "*.json")):
             doc_id = os.path.basename(filepath).replace(".json", "")
-            with open(filepath, "r", encoding="utf-8") as handle:
-                data = json.load(handle)
-            nodes = []
-            self._extract_nodes(data.get("result", data), nodes)
-            self.json_docs[doc_id] = [node for node in nodes if node["id"] and node["text"]]
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data  = json.load(f)
+                nodes = []
+                self._extract_nodes(data.get('result', data), nodes)
+                self.json_docs[doc_id] = [n for n in nodes if n["id"] and n["text"]]
 
+    # ──────────────────────────────────────────────────────────────────────────
     def _extract_nodes(self, data, nodes_list, current_path=None):
         if current_path is None:
             current_path = []
@@ -102,54 +125,55 @@ class UniversalInference:
         if isinstance(data, list):
             for item in data:
                 self._extract_nodes(item, nodes_list, current_path)
-            return
 
-        if not isinstance(data, dict):
-            return
+        elif isinstance(data, dict):
+            section_title = data.get("title", data.get("header", ""))
+            new_path      = current_path + [section_title] if section_title else current_path
 
-        section_title = data.get("title", data.get("header", ""))
-        new_path = current_path + [section_title] if section_title else current_path
+            node_id = data.get("node_id", data.get("id"))
+            if node_id:
+                summary  = str(data.get("prefix_summary", data.get("summary", "")))
+                raw_text = str(data.get("text", ""))
+                if len(summary) < 5:
+                    summary = raw_text[:100]
 
-        node_id = data.get("node_id", data.get("id"))
-        if node_id:
-            summary = str(data.get("prefix_summary", data.get("summary", "")))
-            raw_text = str(data.get("text", ""))
-            if len(summary) < 5:
-                summary = raw_text[:100]
+                path_str = " > ".join(new_path) if new_path else ""
 
-            path_str = " > ".join(new_path) if new_path else ""
-
-            nodes_list.append(
-                {
-                    "id": str(node_id),
+                nodes_list.append({
+                    "id":      str(node_id),
+                    # summary keeps path label for logging
                     "summary": f"[{path_str}] {summary}" if path_str else summary,
-                    "text": raw_text,
-                    "path": path_str.lower(),
-                }
-            )
+                    # FIX: text is CLEAN — no bracketed path prefix
+                    # Cross-encoder sees plain clause text only, same as training
+                    "text":    raw_text,
+                    "path":    path_str.lower(),
+                })
 
-            sub_nodes = _rechunk_text(str(node_id), raw_text, path_str)
-            if sub_nodes:
-                print(f"   [chunk] Re-chunked node '{node_id}' -> {len(sub_nodes)} sub-nodes")
-            nodes_list.extend(sub_nodes)
+                sub_nodes = _rechunk_text(str(node_id), raw_text, path_str)
+                if sub_nodes:
+                    print(f"   ✂️  Re-chunked node '{node_id}' → {len(sub_nodes)} sub-nodes")
+                nodes_list.extend(sub_nodes)
 
-        if "nodes" in data:
-            self._extract_nodes(data["nodes"], nodes_list, new_path)
+            if "nodes" in data:
+                self._extract_nodes(data["nodes"], nodes_list, new_path)
 
+    # ──────────────────────────────────────────────────────────────────────────
     def ingest_tree(self, doc_id: str, tree_dict):
         nodes = []
-        data_to_extract = tree_dict.get("result", tree_dict) if isinstance(tree_dict, dict) else tree_dict
+        data_to_extract = (
+            tree_dict.get('result', tree_dict)
+            if isinstance(tree_dict, dict)
+            else tree_dict
+        )
         self._extract_nodes(data_to_extract, nodes)
-        self.json_docs[doc_id] = [node for node in nodes if node["id"] and node["text"]]
+        self.json_docs[doc_id] = [n for n in nodes if n["id"] and n["text"]]
         count = len(self.json_docs.get(doc_id, []))
-        print(f"   [ingest] Universal Selector ingested '{doc_id}' - {count} nodes ready.")
+        print(f"   🧠 [Universal Selector] Ingested '{doc_id}' — {count} nodes ready.")
 
-    def extract_payload(
-        self,
-        question: str,
-        targets: list,
-        confidence_threshold: float = _DEFAULT_CONFIDENCE_THRESHOLD,
-    ) -> dict:
+    # ──────────────────────────────────────────────────────────────────────────
+    def extract_payload(self, question: str, targets: list,
+                        confidence_threshold: float = 0.15) -> dict:
+
         payload = {"user_question": question, "selected_clauses": []}
 
         resolved_ids = []
@@ -164,164 +188,121 @@ class UniversalInference:
         with torch.no_grad():
             for doc_id in resolved_ids:
                 if doc_id not in self.json_docs:
-                    payload["selected_clauses"].append(
-                        {
-                            "document_id": doc_id,
-                            "node_id": "Error",
-                            "confidence_score": 0.0,
-                            "text": "[ DOCUMENT NOT FOUND IN DATABASE ]",
-                        }
-                    )
+                    payload["selected_clauses"].append({
+                        "document_id":      doc_id,
+                        "node_id":          "Error",
+                        "confidence_score": 0.0,
+                        "text":             "[ DOCUMENT NOT FOUND IN DATABASE ]"
+                    })
                     continue
 
                 nodes = self.json_docs[doc_id]
 
+                # ── 1. VECTORLESS PRE-RETRIEVAL ───────────────────────────
                 def compute_score(query: str, node: dict) -> float:
-                    query_lower = query.lower()
+                    q        = query.lower()
+                    # For scoring we still use path + summary for signal,
+                    # but the cross-encoder will only see clean node["text"]
                     combined = (
-                        node.get("summary", "").lower()
-                        + " "
-                        + node.get("text", "").lower()
-                        + " "
-                        + node.get("path", "").lower()
+                        node.get("summary", "").lower() + " " +
+                        node.get("text",    "").lower() + " " +
+                        node.get("path",    "").lower()
                     )
-                    path_lower = node.get("path", "").lower()
+                    path_l = node.get("path", "").lower()
 
-                    if any(keyword in path_lower for keyword in _NOISE_PATH_KEYWORDS):
+                    # Dynamic Penalty Check: skip penalty if the user explicitly asked for those terms
+                    has_noise_intent = any(kw in q for kw in _NOISE_PATH_KEYWORDS)
+                    if not has_noise_intent and any(kw in path_l for kw in _NOISE_PATH_KEYWORDS):
                         return -10.0
 
-                    exact = 5.0 if query_lower in combined else 0.0
+                    exact = 5.0 if q in combined else 0.0
 
+                    # Expanded stopwords — words like "policy", "cover", "rider"
+                    # appear in every node and give zero signal
                     stopwords = {
-                        "is",
-                        "the",
-                        "a",
-                        "an",
-                        "of",
-                        "in",
-                        "on",
-                        "for",
-                        "to",
-                        "and",
-                        "or",
-                        "what",
-                        "my",
-                        "me",
-                        "does",
-                        "do",
-                        "have",
-                        "has",
-                        "will",
-                        "can",
-                        "policy",
-                        "cover",
-                        "covered",
-                        "rider",
+                        "is", "the", "a", "an", "of", "in", "on",
+                        "for", "to", "and", "or", "what", "my", "me",
+                        "does", "do", "have", "has", "will", "can",
+                        "policy", "cover", "covered", "rider",
                     }
-                    keywords = [
-                        word for word in query_lower.split() if word not in stopwords and len(word) > 2
-                    ]
+                    kws = [w for w in q.split()
+                           if w not in stopwords and len(w) > 2]
 
-                    keyword_score = sum(1.5 for word in keywords if word in combined)
-                    bigrams = [
-                        f"{keywords[index]} {keywords[index + 1]}"
-                        for index in range(len(keywords) - 1)
-                    ]
-                    bigram_score = sum(3.0 for bigram in bigrams if bigram in combined)
-                    path_score = sum(4.0 for word in keywords if word in path_lower)
+                    kw_score = sum(1.5 for w in kws if w in combined)
 
-                    return exact + keyword_score + bigram_score + path_score
+                    bigrams  = [f"{kws[i]} {kws[i+1]}" for i in range(len(kws) - 1)]
+                    bg_score = sum(3.0 for bg in bigrams if bg in combined)
 
-                scored = [(compute_score(question, node), node) for node in nodes]
-                scored.sort(key=lambda item: item[0], reverse=True)
+                    # High path weight so clause-specific nodes rank much higher
+                    path_score = sum(4.0 for w in kws if w in path_l)
 
-                top_candidate_pairs = [(score, node) for score, node in scored[:25] if score > 0] or scored[:10]
-                top_candidates = [node for _, node in top_candidate_pairs]
-                top_candidate_scores = [float(score) for score, _ in top_candidate_pairs]
+                    return exact + kw_score + bg_score + path_score
+
+                scored = [(compute_score(question, n), n) for n in nodes]
+                scored.sort(key=lambda x: x[0], reverse=True)
+
+                # Only pass candidates with a positive pre-retrieval score
+                # to the cross-encoder. Noise nodes (score <= 0) are excluded.
+                top_candidates = (
+                    [n for s, n in scored[:25] if s > 0]
+                    or [n for _, n in scored[:10]]
+                )
 
                 print("\nTop candidates:")
-                for score, node in scored[:5]:
-                    print(f"  {score:.1f} -> {node['summary'][:100]}")
+                for score, n in scored[:5]:
+                    print(f"  {score:.1f} → {n['summary'][:100]}")
 
-                pairs = [[question, node["text"]] for node in top_candidates]
+                # ── 2. CROSS-ENCODER RANKING ──────────────────────────────
+                # node["text"] is already clean (no bracket prefix) so we feed
+                # it directly — no stripping needed anymore
+                pairs  = [[question, n["text"]] for n in top_candidates]
                 inputs = self.tokenizer(
                     pairs,
                     padding=True,
                     truncation=True,
                     max_length=512,
-                    return_tensors="pt",
+                    return_tensors="pt"
                 )
                 logits = self.model(**inputs).logits.squeeze(-1)
-                if logits.dim() == 0:
-                    logits = logits.unsqueeze(0)
+                probs  = torch.sigmoid(logits)
+                if probs.dim() == 0:
+                    probs = probs.unsqueeze(0)
 
-                # The package metadata says the default activation is Identity.
-                # That does not change the loaded classifier head; it just means
-                # the original SentenceTransformers wrapper exposed raw scores.
-                # We rank by raw logit and use sigmoid only as a bounded score.
-                probs = torch.sigmoid(logits)
-
-                ranked_candidates = []
-                for idx_tensor in torch.argsort(logits, descending=True):
-                    idx = idx_tensor.item()
-                    ranked_candidates.append(
-                        {
-                            "document_id": doc_id,
-                            "node_id": top_candidates[idx]["id"],
-                            "confidence_score": max(
-                                float(probs[idx].item()),
-                                _MIN_CONFIDENCE_FLOOR,
-                            ),
-                            "raw_model_score": float(logits[idx].item()),
-                            "retrieval_score": top_candidate_scores[idx],
-                            "text": top_candidates[idx]["text"],
-                        }
-                    )
-
+                # No fallback — if the cross-encoder cannot find a confident
+                # match above the threshold, we return nothing for this doc
+                # and let the explainer node report "not found" cleanly.
+                # This is honest: a wrong confident answer is worse than silence.
                 added = 0
-                for candidate in ranked_candidates:
+                for idx in torch.argsort(probs, descending=True):
                     if added >= 3:
                         break
+                    score_val = round(probs[idx].item(), 4)
 
-                    if candidate["confidence_score"] < confidence_threshold:
-                        continue
+                    if score_val < confidence_threshold:
+                        # Log the miss so you can diagnose model issues
+                        print(f"   ℹ️  Cross-encoder max score {score_val:.4f} "
+                              f"below threshold {confidence_threshold}. "
+                              f"No clause selected for '{doc_id}'.")
+                        break
 
-                    candidate["selection_reason"] = "threshold_pass"
-                    payload["selected_clauses"].append(candidate)
+                    payload["selected_clauses"].append({
+                        "document_id":      doc_id,
+                        "node_id":          top_candidates[idx]["id"],
+                        "confidence_score": score_val,
+                        "text":             top_candidates[idx]["text"],
+                    })
                     added += 1
-
-                if added == 0 and ranked_candidates:
-                    best_candidate = dict(ranked_candidates[0])
-                    if best_candidate["retrieval_score"] >= _FALLBACK_PRETRIEVAL_THRESHOLD:
-                        best_candidate["fallback"] = True
-                        best_candidate["selection_reason"] = "retrieval_fallback"
-                        payload["selected_clauses"].append(best_candidate)
-                        print(
-                            f"   [info] Max model score {best_candidate['confidence_score']:.4f} "
-                            f"was below threshold {confidence_threshold}, but keeping top "
-                            f"candidate for '{doc_id}' via retrieval fallback "
-                            f"(retrieval={best_candidate['retrieval_score']:.1f}, "
-                            f"logit={best_candidate['raw_model_score']:.4f})."
-                        )
-                    else:
-                        print(
-                            f"   [info] Cross-encoder max score "
-                            f"{best_candidate['confidence_score']:.4f} below threshold "
-                            f"{confidence_threshold}, and retrieval support "
-                            f"{best_candidate['retrieval_score']:.1f} was not strong enough "
-                            f"for '{doc_id}'. No clause selected."
-                        )
 
         return payload
 
 
+# ── TEST ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     question = "Does my policy cover me if my car is stolen?"
-    engine = UniversalInference()
-    payload = engine.extract_payload(
-        question,
-        ["BAJAJ-ALLIANZ-MOTOR-POLICY-WORDING_tree"],
-    )
+    engine   = UniversalInference()
+    payload  = engine.extract_payload(
+                   question,
+                   ["BAJAJ-ALLIANZ-MOTOR-POLICY-WORDING_tree"])
     print("\n" + "=" * 50)
     print(json.dumps(payload, indent=2))
     print("=" * 50 + "\n")
