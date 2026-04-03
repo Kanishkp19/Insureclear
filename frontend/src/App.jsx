@@ -5,6 +5,7 @@ import ResultSpotlight from "./components/ResultSpotlight";
 import RecommendationGrid from "./components/RecommendationGrid";
 import InsightRail from "./components/InsightRail";
 import PolicyTreeExplorer from "./components/PolicyTreeExplorer";
+import ChatPanel from "./components/ChatPanel";
 import { scenarios, defaultQuery, resolveScenarioFromQuery } from "./data/scenarios";
 import policyDocumentData from "../policy_vectorless_document.json";
 
@@ -52,6 +53,7 @@ export default function App() {
         </a>
 
         <nav className="topnav">
+          <a href="#chat">AI Chat</a>
           <a href="#analyzer">Analyzer</a>
           <a href="#policy-tree">Policy tree</a>
           <a href="#recommendations">Recommendations</a>
@@ -66,6 +68,19 @@ export default function App() {
       <main>
         <section className="page-section hero-section">
           <Hero activeScenario={activeScenario} />
+        </section>
+
+        {/* ── Live AI Chat (Universal Selector pipeline) ── */}
+        <section className="page-section" id="chat" style={{ paddingTop: "4rem" }}>
+          <div className="section-head" style={{ marginBottom: "1.5rem" }}>
+            <span className="eyebrow muted">Live pipeline</span>
+            <h2>AI Policy Chat — Powered by Universal Selector</h2>
+            <p style={{ opacity: 0.6, fontSize: "0.95rem", maxWidth: 600 }}>
+              Upload your policy PDF or ask any question. The RL model selects the most
+              relevant clause and the explainer delivers a clear, evidence-backed answer.
+            </p>
+          </div>
+          <ChatPanel />
         </section>
 
         <section className="page-section analyzer-page" id="analyzer">

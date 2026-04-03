@@ -3,3 +3,8 @@ docling
 python-dotenv
 google-genai
 langgraph
+fastapi
+uvicorn[standard]
+python-multipart
+torch
+transformers
