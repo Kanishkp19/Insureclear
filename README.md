@@ -50,23 +50,32 @@ The model was trained on a massive dataset of real-world insurance policies (HDF
 
 ```mermaid
 graph TD
-    subgraph "Phase 1: Ingestion"
-        A([User PDF]) --> B[PageIndex SDK]
-        B --> C[(Vectorless JSON Tree)]
+    %% Styling Definitions
+    classDef ingestion fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000;
+    classDef ml fill:#fce4ec,stroke:#880e4f,stroke-width:2px,color:#000;
+    classDef logic fill:#fff8e1,stroke:#ff6f00,stroke-width:2px,color:#000;
+    classDef user fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000;
+
+    subgraph "Phase 1: Structure-Preserving Ingestion"
+        A([User PDF]):::user --> B[PageIndex Engine]:::ingestion
+        B --> C[(Vectorless JSON Tree)]:::ingestion
     end
     
-    subgraph "Phase 2: Reranking & RL"
-        D[User Question] --> E[LangGraph Router]
-        E --> F[Top-K Candidate Filter]
-        F --> G[Universal RL Selector]
-        G --> H[Final Clause Selection]
+    subgraph "Phase 2: Intelligent Routing & RL Selection"
+        D([User Question]):::user --> E[LangGraph Dispatcher]:::ml
+        E --> F[Domain-Specific Pre-Processor]:::ml
+        F --> G[Universal RL Selector]:::ml
+        C -.->|Context Injection| G
     end
     
-    subgraph "Phase 3: Intelligence"
-        H --> I[Explainer Agent]
-        I --> J[Summary & Counterfactuals]
-        J --> K[Premium Results UI]
+    subgraph "Phase 3: Decision Intelligence"
+        G --> H[Explainer Agent]:::logic
+        H --> I[Counterfactual & Trap Logic]:::logic
+        I --> J[Premium Dashboard UI]:::logic
     end
+
+    %% Key Connections
+    E -.->|Session Cache| C
 ```
 
 ---
