@@ -2,6 +2,8 @@
 
 ### *The Vectorless RL Insurance Extraction Framework*
 
+**🚀 Live Demo: [https://insureclear-policy-checker-mx37.vercel.app/](https://insureclear-policy-checker-mx37.vercel.app/)**
+
 InsureClear is a state-of-the-art policy understanding engine that replaces traditional keyword search with an advanced **Reinforcement Learning (RL) Selector** and **Vectorless Document Trees**. It enables users to upload complex, unstructured PDFs and receive high-precision clause matches and AI-driven explanations instantly.
 
 ---
@@ -72,6 +74,31 @@ cd frontend
 npm install
 npm run dev
 ```
+
+---
+
+## 🚀 Deployment Guide
+
+### Frontend (Vercel)
+To deploy the React/Vite frontend to Vercel, use the following configuration:
+
+1.  **Repo**: Import your `Insureclear` GitHub repository.
+2.  **Framework Preset**: Select `Vite`.
+3.  **Root Directory**: Set this to `frontend`.
+4.  **Install Command**: `npm install`
+5.  **Build Command**: `npm run build`
+6.  **Output Directory**: `dist`
+7.  **Environment Variables**:
+    - `VITE_API_BASE_URL`: The URL of your deployed FastAPI backend (e.g., `https://api.insureclear.render.com`).
+
+### Backend (Railway / Render / Fly.io)
+The FastAPI backend requires a Python environment.
+1.  **Root Directory**: `backend`
+2.  **Build Command**: `pip install -r requirements.txt`
+3.  **Start Command**: `python -m uvicorn api_server:server --host 0.0.0.0 --port $PORT`
+4.  **Environment Variables**:
+    - `GEMINI_API_KEY`: Required for query pre-processing.
+    - `PAGEINDEX_API_KEY`: Required for PDF structured parsing.
 
 ---
 
