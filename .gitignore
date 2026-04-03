@@ -1,0 +1,48 @@
+# ─── Python ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+*.spec
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# ─── Environment / Secrets ────────────────────────────────
+.env
+*.env
+.env.*
+
+# ─── ML Model weights ────────────────────────────────────
+# ✅ universal_selector/ model IS included (17.5MB, needed for deployment)
+# Add exclusions below only if you add large models in future:
+# *.safetensors
+
+# ─── Temp / cache files ───────────────────────────────────
+backend/temp_data/
+backend/__pycache__/
+backend/path/
+*.log
+*.tmp
+
+# ─── Node / Frontend ──────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.cache/
+
+# ─── OS / Editor ──────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
