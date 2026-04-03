@@ -1,0 +1,19 @@
+# 1. Ignore EVERYTHING in the repository by default
+*
+
+# 2. Un-ignore the .gitignore itself so the rules are pushed
+!.gitignore
+
+# 3. Un-ignore the ML Model Weights folder completely
+!models/
+!models/universal_selector/
+!models/universal_selector/**
+
+# 4. Un-ignore the Pipeline folder
+!pipeline/
+
+# 5. Ignore everything inside the Pipeline folder...
+pipeline/*
+
+# ...EXCEPT for the specific inference code you want to share!
+!pipeline/inference_universal.py
