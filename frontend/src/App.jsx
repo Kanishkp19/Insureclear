@@ -3,8 +3,8 @@ import Hero from "./components/Hero";
 import QueryPanel from "./components/QueryPanel";
 import ResultSpotlight from "./components/ResultSpotlight";
 import RecommendationGrid from "./components/RecommendationGrid";
-import InsightRail from "./components/InsightRail";
 import PolicyTreeExplorer from "./components/PolicyTreeExplorer";
+import AboutSection from "./components/AboutSection";
 import { scenarios, defaultQuery, resolveScenarioFromQuery } from "./data/scenarios";
 import policyDocumentData from "../policy_vectorless_document.json";
 
@@ -52,10 +52,9 @@ export default function App() {
         </a>
 
         <nav className="topnav">
-          <a href="#analyzer">Analyzer</a>
+          <a href="#analysis">Analysis</a>
           <a href="#policy-tree">Policy tree</a>
-          <a href="#recommendations">Recommendations</a>
-          <a href="#insights">Insights</a>
+          <a href="#about">About</a>
         </nav>
 
         <button className="ghost-button" type="button">
@@ -68,16 +67,16 @@ export default function App() {
           <Hero activeScenario={activeScenario} />
         </section>
 
-        <section className="page-section analyzer-page" id="analyzer">
+        <section className="page-section analyzer-page" id="analysis">
           <section className="analyzer-stage">
             <div className="section-head analyzer-head">
               <div>
-                <span className="eyebrow muted">Main analyzer</span>
-                <h2>Paste the policy question. Let the decision and recommendations follow.</h2>
+                <span className="eyebrow muted">Analysis and recommendations</span>
+                <h2>Analyze the situation, surface the clause, and compare the best-fit policies.</h2>
               </div>
               <p>
-                This is the primary action area now. The analyzer leads, the verdict appears
-                right underneath, and the recommended policies continue below in one clean flow.
+                This page combines the core product flow: enter the claim-like question, inspect
+                the decision, then review the recommended policies in the same place.
               </p>
             </div>
 
@@ -93,20 +92,20 @@ export default function App() {
 
               <ResultSpotlight activeScenario={activeScenario} isAnalyzing={isAnalyzing} />
             </div>
+
+            <div className="analysis-recommendations">
+              <RecommendationGrid
+                recommendations={activeScenario.recommendations}
+                userGoal={activeScenario.userGoal}
+              />
+            </div>
           </section>
         </section>
 
         <PolicyTreeExplorer documentData={policyDocumentData} />
 
-        <section className="page-section recommendations-page">
-          <RecommendationGrid
-            recommendations={activeScenario.recommendations}
-            userGoal={activeScenario.userGoal}
-          />
-        </section>
-
-        <section className="page-section insights-page">
-          <InsightRail activeScenario={activeScenario} />
+        <section className="page-section about-page">
+          <AboutSection activeScenario={activeScenario} />
         </section>
       </main>
     </div>

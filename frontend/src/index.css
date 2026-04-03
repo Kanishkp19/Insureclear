@@ -104,8 +104,7 @@ textarea {
 
 .analyzer-page,
 .tree-page,
-.recommendations-page,
-.insights-page {
+.about-page {
   justify-content: flex-start;
   animation: sectionReveal 900ms ease both;
 }
@@ -114,12 +113,8 @@ textarea {
   animation-delay: 40ms;
 }
 
-.recommendations-page {
-  animation-delay: 80ms;
-}
-
-.insights-page {
-  animation-delay: 140ms;
+.about-page {
+  animation-delay: 120ms;
 }
 
 .ambient {
@@ -731,6 +726,13 @@ textarea {
   margin: 0 auto;
 }
 
+.analysis-recommendations {
+  position: relative;
+  z-index: 1;
+  max-width: 1180px;
+  margin: 46px auto 0;
+}
+
 .query-panel {
   max-width: 1040px;
   margin: 0 auto;
@@ -1090,6 +1092,45 @@ textarea:focus {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 24px;
   margin-top: 0;
+}
+
+.about-shell {
+  width: 100%;
+}
+
+.about-head {
+  max-width: 1280px;
+  margin: 0 auto 36px;
+}
+
+.about-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.about-band {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.74fr) 1fr;
+  gap: 24px;
+  align-items: start;
+  max-width: 1280px;
+  margin: 24px auto 0;
+}
+
+.about-band h3 {
+  margin: 8px 0 0;
+  font-family: "Sora", sans-serif;
+  font-size: clamp(1.5rem, 2.5vw, 2.2rem);
+  line-height: 1.08;
+}
+
+.about-band p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.8;
 }
 
 .tree-stage {
@@ -1578,7 +1619,9 @@ textarea:focus {
 @media (max-width: 1120px) {
   .hero,
   .recommendation-grid,
-  .insight-rail {
+  .insight-rail,
+  .about-grid,
+  .about-band {
     grid-template-columns: 1fr;
   }
 
