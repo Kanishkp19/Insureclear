@@ -3,6 +3,7 @@ import HeroPage from "./pages/HeroPage";
 import AnalysisPage from "./pages/AnalysisPage";
 import TreePage from "./pages/TreePage";
 import AboutPage from "./pages/AboutPage";
+import SummaryPage from "./pages/SummaryPage";
 import { scenarios, defaultQuery, resolveScenarioFromQuery } from "./data/scenarios";
 import policyDocumentData from "../policy_vectorless_document.json";
 import { queryPolicy, uploadPDF, fetchPolicyTree } from "./utils/api";
@@ -11,6 +12,7 @@ const PAGE_LABELS = {
   home: "Home",
   analysis: "Analysis",
   tree: "Policy Tree",
+  summary: "Summary",
   about: "About",
 };
 
@@ -19,6 +21,7 @@ function getPageFromHash() {
 
   if (hash === "analysis") return "analysis";
   if (hash === "policy-tree" || hash === "tree") return "tree";
+  if (hash === "summary") return "summary";
   if (hash === "about") return "about";
 
   return "home";
@@ -234,6 +237,10 @@ export default function App() {
       return <TreePage documentData={treeData} />;
     }
 
+    if (page === "summary") {
+      return <SummaryPage sessionId={sessionId} uploadedFileName={uploadedFileName} />;
+    }
+
     if (page === "about") {
       return <AboutPage activeScenario={activeScenario} />;
     }
@@ -265,6 +272,9 @@ export default function App() {
           </a>
           <a className={page === "tree" ? "active" : ""} href="#/tree">
             Policy tree
+          </a>
+          <a className={page === "summary" ? "active" : ""} href="#/summary">
+            Summary
           </a>
           <a className={page === "about" ? "active" : ""} href="#/about">
             About

@@ -29,6 +29,7 @@ from agent_pipeline import (
     clear_temp_tree,
     _session_store
 )
+from policy_summarizer import summarize_policy_tree
 
 # ---------------------------------------------------------------------------
 # Temporary Data Directory
@@ -200,6 +201,37 @@ async def clear_document(session_id: str):
     """Clears the uploaded policy for this session."""
     clear_temp_tree(session_id)
     return {"message": "✅ Uploaded policy cleared."}
+
+
+class SummarizeRequest(BaseModel):
+    session_id: Optional[str] = None
+
+
+@server.post("/summarize")
+async def summarize_document(body: SummarizeRequest):
+    """
+    Summarizes the uploaded policy document in plain English.
+    Completely independent of the query/extraction pipeline.
+    Requires a session that already has an uploaded document tree.
+    """
+    if not body.session_id:
+        raise HTTPException(status_code=400, detail="session_id is required.")
+
+    tree = get_temp_tree(body.session_id)
+    if not tree:
+        raise HTTPException(
+            status_code=404,
+            detail="No uploaded document found for this session. Please upload a policy PDF first."
+        )
+
+    try:
+        result = summarize_policy_tree(tree)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Summarizer error: {str(e)}")
+
+    return result
 
 
 @server.post("/query", response_model=QueryResponse)

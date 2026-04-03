@@ -56,3 +56,18 @@ export async function fetchPolicyTree(sessionId) {
 
   return response.json();
 }
+
+export async function summarizePolicy(sessionId) {
+  const response = await fetch(`${API_BASE}/summarize`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail || `Summarize failed with status ${response.status}`);
+  }
+
+  return response.json();
+}

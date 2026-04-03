@@ -2264,3 +2264,236 @@ h3 {
   margin: 4px 0 0;
   line-height: 1.4;
 }
+
+/* ═══════════════════════════════════════════════════
+   SUMMARY PAGE
+═══════════════════════════════════════════════════ */
+.summary-page {
+  animation: sectionReveal 700ms ease both;
+  padding: 32px 0 80px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.summary-header {
+  text-align: center;
+  padding-bottom: 40px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 48px;
+}
+
+.summary-title {
+  margin: 0 0 10px;
+  font-family: "Sora", sans-serif;
+  font-size: clamp(2.4rem, 4vw, 3.4rem);
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+.summary-subtitle {
+  max-width: 52ch;
+  margin: 0 auto 24px;
+  color: var(--muted);
+  line-height: 1.75;
+  font-size: 1.02rem;
+}
+
+.summary-file-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  margin-bottom: 24px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.56);
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.summary-file-icon {
+  font-size: 1rem;
+}
+
+.summary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0 32px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, #1e2329, #4a525c);
+  box-shadow: 0 18px 42px rgba(30, 35, 41, 0.22);
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
+}
+
+.summary-btn:hover:not(.disabled):not(.loading) {
+  transform: translateY(-2px);
+  box-shadow: 0 24px 52px rgba(30, 35, 41, 0.3);
+}
+
+.summary-btn.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.summary-btn.loading {
+  opacity: 0.8;
+  cursor: wait;
+}
+
+.summary-spinner-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.summary-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.summary-error {
+  margin-top: 16px;
+  color: var(--danger);
+  font-size: 0.9rem;
+}
+
+/* ── Results ── */
+.summary-results {
+  animation: riseIn 500ms ease both;
+}
+
+.summary-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-bottom: 32px;
+}
+
+.summary-policy-name {
+  font-family: "Sora", sans-serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.summary-clause-count {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.summary-clauses {
+  display: grid;
+  gap: 20px;
+}
+
+.summary-clause-card {
+  display: flex;
+  gap: 20px;
+  padding: 28px 28px 28px 24px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.58);
+  backdrop-filter: blur(12px);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.summary-clause-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(45, 38, 30, 0.08);
+}
+
+.clause-number {
+  flex-shrink: 0;
+  width: 40px;
+  font-family: "Sora", sans-serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--accent);
+  padding-top: 3px;
+}
+
+.clause-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.clause-name {
+  margin: 0 0 10px;
+  font-family: "Sora", sans-serif;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+}
+
+.clause-plain {
+  margin: 0 0 16px;
+  color: var(--muted);
+  line-height: 1.75;
+  font-size: 0.97rem;
+}
+
+.clause-watchouts {
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  background: rgba(184, 79, 74, 0.06);
+  border-left: 3px solid var(--accent);
+}
+
+.watchout-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.watchout-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+.watchout-list li {
+  font-size: 0.9rem;
+  color: var(--danger);
+  line-height: 1.55;
+}
+
+/* ── Empty state ── */
+.summary-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-top: 64px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.summary-empty-icon {
+  font-size: 3.5rem;
+  opacity: 0.5;
+}
+
+.summary-empty p {
+  max-width: 40ch;
+  margin: 0;
+  line-height: 1.7;
+  font-size: 1rem;
+}
