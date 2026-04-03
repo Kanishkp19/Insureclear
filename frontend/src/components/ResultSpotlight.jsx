@@ -1,12 +1,15 @@
 import React from "react";
 
-export default function ResultSpotlight({ activeScenario, isAnalyzing }) {
+export default function ResultSpotlight({ activeScenario, isAnalyzing, analysisMeta }) {
   return (
     <section className="result-panel surface-card">
       <div className="result-head">
         <div>
           <span className="eyebrow muted">Live result</span>
           <h2>Decision output with exact evidence and explanation.</h2>
+          {analysisMeta?.source === "backend" && analysisMeta?.domain ? (
+            <p className="result-meta-copy">Backend domain detected: {analysisMeta.domain}</p>
+          ) : null}
         </div>
         <div className={`score-badge ${activeScenario.verdictTone}`}>
           <strong>{activeScenario.score}</strong>

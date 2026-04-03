@@ -1,13 +1,16 @@
 import React from "react";
-import { scenarios } from "../data/scenarios";
 
 export default function QueryPanel({
   query,
   onQueryChange,
   onAnalyze,
   isAnalyzing,
-  activeScenarioId,
-  onPresetSelect,
+  onUpload,
+  isUploading,
+  sessionId,
+  uploadedFileName,
+  nodeCount,
+  analysisMeta,
 }) {
   const charCount = query.length;
 
@@ -23,6 +26,28 @@ export default function QueryPanel({
         </div>
       </div>
 
+      <div className="upload-strip">
+        <div className="upload-copy">
+          <span className="query-label">Policy PDF</span>
+          <strong>{uploadedFileName || "No file uploaded yet"}</strong>
+          <span>
+            {sessionId
+              ? `Session active | ${nodeCount || 0} nodes processed`
+              : "Upload a PDF to query the backend policy pipeline"}
+          </span>
+        </div>
+
+        <label className="secondary-button upload-button">
+          {isUploading ? "Uploading..." : "Upload PDF"}
+          <input
+            type="file"
+            accept=".pdf,application/pdf"
+            onChange={(event) => onUpload?.(event.target.files?.[0])}
+            hidden
+          />
+        </label>
+      </div>
+
       <div className="analyzer-frame">
         <div className="textarea-meta">
           <label className="query-label" htmlFor="policy-query">
@@ -35,7 +60,7 @@ export default function QueryPanel({
           id="policy-query"
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Example: Hospitalized after 20 days for diabetes. Which policy should I choose?"
+          placeholder="Ask a claim question or request a policy recommendation from the uploaded document."
         />
       </div>
 
@@ -49,19 +74,12 @@ export default function QueryPanel({
         </span>
       </div>
 
-      <div className="preset-grid">
-        {scenarios.map((scenario) => (
-          <button
-            key={scenario.id}
-            className={`preset-card ${scenario.id === activeScenarioId ? "selected" : ""}`}
-            type="button"
-            onClick={() => onPresetSelect(scenario.id)}
-          >
-            <strong>{scenario.label}</strong>
-            <span>{scenario.verdict} scenario</span>
-          </button>
-        ))}
-      </div>
+      {analysisMeta?.error ? <p className="backend-notice">{analysisMeta.error}</p> : null}
+      {analysisMeta?.refinedQuestion ? (
+        <p className="backend-notice">
+          Refined question: <strong>{analysisMeta.refinedQuestion}</strong>
+        </p>
+      ) : null}
     </section>
   );
 }
