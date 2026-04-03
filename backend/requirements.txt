@@ -1,0 +1,11 @@
+pageindex
+docling
+python-dotenv
+google-genai
+groq
+langgraph
+fastapi
+uvicorn[standard]
+python-multipart
+torch
+transformers
