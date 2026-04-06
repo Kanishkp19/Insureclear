@@ -101,6 +101,34 @@ graph TD
 
 ---
 
+## 🏥 Real-World Use Cases
+
+- **Immediate Claims Verification**: A user in a hospital can upload their health policy and instantly ask, *"Is my cataract surgery fully covered?"* to see the exact sub-limits.
+- **Accident Assistance**: Ask *"Does my third-party premium cover roadside assistance?"* while at an accident site to get a direct answer and a link to the clause.
+- **Policy Comparison**: Upload a new quote and compare it against your existing policy to find hidden exclusions or more favorable riders.
+
+---
+
+## 🔬 Algorithmic Deep-Dive: Why Cross-Encoders?
+
+Most RAG systems use **Bi-Encoders** (e.g., Pinecone/OpenAI embeddings), which compare two vectors via cosine similarity. While fast, this misses the **contextual nuance** of legal language. 
+
+Our **Cross-Encoder** architecture processes the query and the clause *together* in a single attention pass. This allows the model to:
+1.  **Spot Disclaimers**: Identify if a benefit is neutralized by a "provided that" clause.
+2.  **Handle Negation**: Accurately distinguish "covered except for X" from "not covered except for X".
+3.  **Maximum Attention**: Achieve superior precision for legal-grade extraction where "close" is not good enough.
+
+---
+
+## 🔐 Data Privacy & Security
+
+We prioritize your document security:
+- **Vectorless Isolation**: No persistent vector databases are used. Your PDF data exists only in an isolated, temporary session store.
+- **Auto-Cleanup**: Temporary data is automatically purged upon server shutdown or session clearing.
+- **No Secondary Storage**: Your policy text is used for inference only; it is never stored on disk for further model training or shared with third-party datasets.
+
+---
+
 ## 🚀 Future Roadmap
 
 - [ ] **Multi-Document Comparison**: Compare two policies side-by-side to highlight coverage gaps.

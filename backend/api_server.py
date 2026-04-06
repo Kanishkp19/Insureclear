@@ -61,7 +61,11 @@ server = FastAPI(
 
 server.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],           # Allow Vite dev server; tighten in production
+    allow_origins=[
+        "https://insureclear-policy-checker-mx37.vercel.app",
+        "http://localhost:5173",   # Vite dev server
+        "http://localhost:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -1,0 +1,33 @@
+graph TD
+    %% Styling Definitions
+    classDef user fill:#f9f9f9,stroke:#333,stroke-width:2px,color:#000;
+    classDef ingestion fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000;
+    classDef machineLearning fill:#fce4ec,stroke:#880e4f,stroke-width:2px,color:#000;
+    classDef output fill:#fff8e1,stroke:#ff6f00,stroke-width:2px,color:#000;
+    classDef boundary stroke:#333,stroke-dasharray: 5 5;
+
+    subgraph "Phase 1: Input & Ingestion"
+        A([User PDF Document]):::user --> B[PageIndex Engine]:::ingestion
+        B --> C[(Hierarchical JSON Tree)]:::ingestion
+        C -.->|Provides Context| G
+    end
+
+    subgraph "Phase 2: Intelligent Routing"
+        D([User Question]):::user --> E[LangGraph Dispatcher]:::machineLearning
+        E --> F[Query Expansion & Pre-Processing]:::machineLearning
+    end
+
+    subgraph "Phase 3: RL-Powered Extraction"
+        F --> G[Universal RL Cross-Encoder]:::machineLearning
+        G --> H{Top-K Clause Filtering}:::machineLearning
+    end
+
+    subgraph "Phase 4: Decision Intelligence"
+        H --> I[Llama 3 Explainer Agent]:::output
+        I --> J[Dynamic Verdict System]:::output
+        J --> K[Premium Dashboard UI]:::output
+    end
+
+    %% Key Feedback Loops
+    K -.->|Session Cache| E
+    E -.->|Thread History| I
